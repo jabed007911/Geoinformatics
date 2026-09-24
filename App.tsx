@@ -334,6 +334,7 @@ export default function App() {
           <div>
             Bangladesh <strong>GeoForecast</strong>
             <span>WEATHER & GEOSPATIAL EXPLORER</span>
+            <span>Created by Kazi Md. Jabed Hossain</span>
           </div>
         </div>
         <nav aria-label="Information">
