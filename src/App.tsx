@@ -570,13 +570,28 @@ export default function App() {
               new forecast.
             </div>
           )}
-          <div className="metrics">
+          <div
+            className="metrics"
+            style={{
+              gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+            }}
+          >
             {[
               {
                 label: "PRECIPITATION",
                 value: fmt(current?.precipitation),
                 unit: "mm",
                 note: "Preceding hour",
+                icon: CloudRain,
+              },
+              {
+                label: "CHANCE OF RAIN",
+                value: fmt(current?.precipitationProbability, 0),
+                unit: "%",
+                note:
+                  current?.precipitationProbability == null
+                    ? "Provider probability unavailable"
+                    : "Preceding hour · >0.1 mm",
                 icon: CloudRain,
               },
               {
@@ -614,6 +629,15 @@ export default function App() {
               </div>
             ))}
           </div>
+          <p style={{ margin: "0 0 12px", fontSize: "12px", color: "#42566b" }}>
+            Chance of rain is Open-Meteo's precipitation probability (rain,
+            showers or snow), not an observed value or flood probability. It
+            covers the hour ending at the selected timeline time
+            {current
+              ? `: ${localTime(current.time - HOUR)}–${localTime(current.time)} (Bangladesh time)`
+              : ""}
+            . Missing probability is shown as —, not zero.
+          </p>
           <div className="map-section">
             <MapView
               place={place}

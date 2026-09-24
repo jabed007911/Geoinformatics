@@ -2,6 +2,7 @@ export type Place = { name: string; lat: number; lon: number };
 export type Hour = {
   time: number;
   precipitation: number | null;
+  precipitationProbability?: number | null;
   temperature: number | null;
   humidity: number | null;
   wind: number | null;
@@ -109,6 +110,16 @@ export function parseForecast(raw: unknown, now = Date.now()): Forecast {
     throw new Error("The forecast contains inconsistent hourly arrays.");
   if (!validCoords(r.latitude, r.longitude))
     throw new Error("Invalid forecast grid coordinates.");
+  const probability = h.precipitation_probability;
+  if (
+    probability != null &&
+    (!Array.isArray(probability) || probability.length !== h.time.length)
+  )
+    throw new Error(
+      "The probability forecast contains inconsistent hourly arrays.",
+    );
+  if (probability != null && u.precipitation_probability !== "%")
+    throw new Error("Unexpected precipitation probability units.");
   const hours = h.time.map((t: unknown, i: number): Hour => {
     if (
       typeof t !== "number" ||
@@ -124,6 +135,7 @@ export function parseForecast(raw: unknown, now = Date.now()): Forecast {
     return {
       time: t * 1000,
       precipitation: value(h.precipitation[i], 0, 2000),
+      precipitationProbability: value(probability?.[i], 0, 100),
       temperature: value(h.temperature_2m[i], -100, 70),
       humidity: value(h.relative_humidity_2m[i], 0, 100),
       wind: value(h.wind_speed_10m[i], 0, 500),
@@ -153,7 +165,8 @@ export async function fetchForecast(place: Place, signal: AbortSignal) {
   const q = new URLSearchParams({
     latitude: String(place.lat),
     longitude: String(place.lon),
-    hourly: "precipitation,temperature_2m,relative_humidity_2m,wind_speed_10m",
+    hourly:
+      "precipitation,precipitation_probability,temperature_2m,relative_humidity_2m,wind_speed_10m",
     forecast_days: "8",
     timezone: "Asia/Dhaka",
     timeformat: "unixtime",
@@ -166,7 +179,7 @@ export async function fetchForecast(place: Place, signal: AbortSignal) {
   );
 }
 export function cacheKey(p: Place) {
-  return `geoforecast-v1:${p.lat.toFixed(4)}:${p.lon.toFixed(4)}`;
+  return `geoforecast-v2:${p.lat.toFixed(4)}:${p.lon.toFixed(4)}`;
 }
 export function readCache(p: Place): Forecast | null {
   try {
@@ -191,6 +204,7 @@ export function readCache(p: Place): Forecast | null {
           (i > 0 && h.time !== f.hours[i - 1].time + HOUR) ||
           [
             ["precipitation", 0, 2000],
+            ["precipitationProbability", 0, 100],
             ["temperature", -100, 70],
             ["humidity", 0, 100],
             ["wind", 0, 500],
@@ -225,6 +239,7 @@ export function csvForecast(f: Forecast, p: Place, hours: Hour[]) {
     "valid_time_utc",
     "valid_time_dhaka",
     "precipitation_preceding_hour_mm",
+    "precipitation_probability_preceding_hour_percent",
     "temperature_2m_C",
     "humidity_2m_percent",
     "wind_10m_kmh",
@@ -242,6 +257,7 @@ export function csvForecast(f: Forecast, p: Place, hours: Hour[]) {
         new Date(h.time).toISOString(),
         new Date(h.time + 6 * HOUR).toISOString().replace("Z", "+06:00"),
         h.precipitation,
+        h.precipitationProbability,
         h.temperature,
         h.humidity,
         h.wind,

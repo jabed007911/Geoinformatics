@@ -10,12 +10,14 @@ function fixture() {
     hourly_units: {
       time: "unixtime",
       precipitation: "mm",
+      precipitation_probability: "%",
       temperature_2m: "°C",
       relative_humidity_2m: "%",
       wind_speed_10m: "km/h",
     },
     hourly: {
       time: times,
+      precipitation_probability: times.map(() => 70),
       precipitation: times.map(
         (_, i) => +Math.max(0, 3 * Math.sin(i / 8)).toFixed(1),
       ),
@@ -62,6 +64,9 @@ test("forecast, map selection, search, playback, share state, CSV and layer cont
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await intercept(page);
+  await expect(
+    page.locator(".metric").filter({ hasText: "CHANCE OF RAIN" }),
+  ).toContainText("70%");
   await expect(page.locator(".metric-value").first()).not.toHaveText("—mm");
   await page.getByRole("button", { name: "Tarash" }).click();
   await expect(
@@ -144,13 +149,11 @@ test("GeoJSON upload, attribute text safety, removal and invalid-file feedback",
       },
     ],
   };
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "test.geojson",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(geo)),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "test.geojson",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(geo)),
+  });
   await expect(
     page.getByText("1 features · polygon area", { exact: false }),
   ).toBeVisible();
@@ -161,13 +164,11 @@ test("GeoJSON upload, attribute text safety, removal and invalid-file feedback",
   await expect(page.locator(".attribute-panel img")).toHaveCount(0);
   await page.getByRole("button", { name: "Remove layer", exact: true }).click();
   await expect(page.locator(".upload-summary")).toHaveCount(0);
-  await page
-    .locator("input[type=file]")
-    .setInputFiles({
-      name: "bad.geojson",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"type":"Point","coordinates":[900,100]}'),
-    });
+  await page.locator("input[type=file]").setInputFiles({
+    name: "bad.geojson",
+    mimeType: "application/json",
+    buffer: Buffer.from('{"type":"Point","coordinates":[900,100]}'),
+  });
   await expect(page.getByRole("alert")).toContainText("Invalid coordinates");
 });
 test("provider failures never create synthetic forecasts; stale cache is identified", async ({
@@ -186,7 +187,7 @@ test("provider failures never create synthetic forecasts; stale cache is identif
   await page.evaluate(
     ({ r, H }) =>
       localStorage.setItem(
-        "geoforecast-v1:22.7185:89.0705",
+        "geoforecast-v2:22.7185:89.0705",
         JSON.stringify({
           fetchedAt: Date.now() - H,
           gridLat: r.latitude,
@@ -194,6 +195,7 @@ test("provider failures never create synthetic forecasts; stale cache is identif
           hours: r.hourly.time.map((t, i) => ({
             time: t * 1000,
             precipitation: r.hourly.precipitation[i],
+            precipitationProbability: r.hourly.precipitation_probability[i],
             temperature: r.hourly.temperature_2m[i],
             humidity: 85,
             wind: 12,
